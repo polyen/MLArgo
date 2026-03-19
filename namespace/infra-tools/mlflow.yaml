@@ -39,6 +39,18 @@ spec:
           host: "0.0.0.0"
           port: "5000"
 
+        livenessProbe:
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+
+        readinessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+
 
   destination:
     namespace: application
