@@ -9,18 +9,9 @@ spec:
     server: https://kubernetes.default.svc
   project: default
   source:
-    repoURL: https://charts.bitnami.com/bitnami
-    chart: postgresql
-    targetRevision: 15.5.22
-    helm:
-      valuesObject:
-        auth:
-          username: mlflow
-          password: mlflowpass
-          database: mlflow
-        primary:
-          persistence:
-            enabled: false
+    repoURL: https://github.com/polyen/MLArgo.git
+    targetRevision: main
+    path: postgres
   syncPolicy:
     automated:
       prune: true
@@ -28,4 +19,3 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - SkipDryRunOnMissingResource=true
