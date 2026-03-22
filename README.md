@@ -10,16 +10,22 @@ MLflow + MinIO + PostgreSQL + PushGateway + Prometheus + Grafana, розгорн
 MLArgo/
 ├── argo-cd/
 │   └── applications/
-│       ├── minio.yaml          # S3-сумісне сховище артефактів
-│       ├── postgres.yaml       # PostgreSQL база для MLflow
-│       ├── mlflow.yaml         # MLflow Tracking Server
-│       ├── pushgateway.yaml    # Prometheus PushGateway
-│       ├── prometheus.yaml     # Prometheus Server (скрейпить PushGateway)
-│       └── grafana.yaml        # Grafana дашборд
+│       ├── minio.yaml            # S3-сумісне сховище артефактів (official MinIO chart)
+│       ├── postgres.yaml         # PostgreSQL (raw K8s manifests, postgres:17)
+│       ├── mlflow.yaml           # MLflow Tracking Server
+│       ├── pushgateway.yaml      # Prometheus PushGateway
+│       ├── prometheus.yaml       # Prometheus Server (scrapes PushGateway)
+│       └── grafana.yaml          # Grafana дашборд
+├── k8s/
+│   └── postgres/
+│       ├── deployment.yaml       # PostgreSQL Deployment
+│       └── service.yaml          # PostgreSQL Service
 ├── experiments/
-│   ├── train_and_push.py       # Скрипт тренування
-│   └── requirements.txt
-├── best_model/                 # З'явиться після запуску скрипту
+│   ├── train_and_push.py         # Скрипт тренування
+│   ├── requirements.txt
+│   ├── .env                      # Локальні env vars (не в git)
+│   └── .env.example              # Шаблон env vars
+├── best_model/                   # З'являється після запуску скрипту
 └── README.md
 ```
 
@@ -43,18 +49,14 @@ kubectl apply -f argo-cd/applications/grafana.yaml
 ## 2. Перевірка наявності MLflow і PushGateway у кластері
 
 ```bash
-# Переглянути всі ArgoCD Applications
+# Всі ArgoCD Applications
 kubectl get applications -n argocd
 
-# Переглянути поди в namespace application
+# Поди в namespace application (MLflow, MinIO, PostgreSQL)
 kubectl get pods -n application
 
-# Переглянути поди в namespace monitoring
+# Поди в namespace monitoring (Prometheus, PushGateway, Grafana)
 kubectl get pods -n monitoring
-
-# Перевірити сервіси
-kubectl get svc -n application
-kubectl get svc -n monitoring
 ```
 
 Очікуваний стан — всі поди `Running`, всі Applications у стані `Synced / Healthy`.
@@ -63,47 +65,33 @@ kubectl get svc -n monitoring
 
 ## 3. Port-forward
 
-### MLflow UI (порт 5000)
+Відкрий окремий термінал для кожного сервісу:
 
 ```bash
+# MLflow UI — http://localhost:5000
 kubectl port-forward svc/mlflow 5000:5000 -n application
-```
 
-Відкрити: [http://localhost:5000](http://localhost:5000)
+# MinIO S3 API — http://localhost:9000
+kubectl port-forward svc/minio 9000:9000 -n application
 
-### MinIO Console (порт 9001)
+# MinIO Console — http://localhost:9001
+kubectl port-forward svc/minio-console 9001:9001 -n application
 
-```bash
-kubectl port-forward svc/minio 9001:9001 -n application
-```
-
-Відкрити: [http://localhost:9001](http://localhost:9001)
-Логін: `minio` / `minio123`
-
-### PushGateway (порт 9091)
-
-```bash
+# PushGateway — http://localhost:9091
 kubectl port-forward svc/prometheus-pushgateway 9091:9091 -n monitoring
-```
 
-Відкрити: [http://localhost:9091](http://localhost:9091)
-
-### Prometheus (порт 9090)
-
-```bash
+# Prometheus — http://localhost:9090
 kubectl port-forward svc/prometheus-server 9090:80 -n monitoring
-```
 
-Відкрити: [http://localhost:9090](http://localhost:9090)
-
-### Grafana (порт 3000)
-
-```bash
+# Grafana — http://localhost:3000
 kubectl port-forward svc/grafana 3000:3000 -n monitoring
 ```
 
-Відкрити: [http://localhost:3000](http://localhost:3000)
-Логін: `admin` / `admin123`
+| Сервіс | URL | Логін |
+|--------|-----|-------|
+| MLflow UI | http://localhost:5000 | — |
+| MinIO Console | http://localhost:9001 | `minio` / `minio123` |
+| Grafana | http://localhost:3000 | `admin` / `admin123` |
 
 ---
 
@@ -116,36 +104,48 @@ cd experiments
 pip install -r requirements.txt
 ```
 
-### Запуск (потрібен активний port-forward для MLflow і PushGateway)
+### Налаштування середовища
+
+Скопіюй шаблон і за потреби відредагуй:
 
 ```bash
-# Термінал 1
-kubectl port-forward svc/mlflow 5000:5000 -n application
+cp experiments/.env.example experiments/.env
+```
 
-# Термінал 2
-kubectl port-forward svc/prometheus-pushgateway 9091:9091 -n monitoring
+Вміст `.env`:
 
-# Термінал 3
+```env
+MLFLOW_TRACKING_URI=http://localhost:5000
+PUSHGATEWAY_URL=localhost:9091
+MLFLOW_S3_ENDPOINT_URL=http://localhost:9000
+AWS_ACCESS_KEY_ID=minio
+AWS_SECRET_ACCESS_KEY=minio123
+```
+
+### Запуск
+
+> Перед запуском переконайся, що активні port-forward для MLflow, MinIO (9000) і PushGateway.
+
+```bash
 cd experiments
-MLFLOW_TRACKING_URI=http://localhost:5000 \
-PUSHGATEWAY_URL=localhost:9091 \
+set -a && source .env && set +a
 python train_and_push.py
 ```
 
 Скрипт:
-1. Тренує 9 моделей `SGDClassifier` на датасеті Iris (3 learning rate × 3 epoch).
+1. Тренує 9 моделей `SGDClassifier` на датасеті Iris (3 learning rate × 3 epochs).
 2. Логує параметри, метрики та модель у MLflow.
 3. Пушить `mlflow_accuracy` та `mlflow_loss` у PushGateway з міткою `run_id`.
 4. Знаходить найкращу модель за accuracy.
-5. Зберігає її у директорію `best_model/` в корені проєкту.
+5. Зберігає її у `best_model/` в корені проєкту.
 
 Очікуваний вивід:
 
 ```
-run_id=abc123  lr=0.001  epochs=50   acc=0.9333  loss=0.2145
-run_id=def456  lr=0.001  epochs=100  acc=0.9667  loss=0.1823
+run_id=abc123  lr=0.001  epochs=50   acc=0.8000  loss=0.5202
+run_id=def456  lr=0.01   epochs=50   acc=1.0000  loss=0.3247
 ...
-Best run: def456  accuracy=0.9667
+Best run: def456  accuracy=1.0000
 Best model saved to ./best_model/
 ```
 
@@ -153,9 +153,9 @@ Best model saved to ./best_model/
 
 ## 5. Перегляд метрик у Grafana
 
-1. Відкрити Grafana: [http://localhost:3000](http://localhost:3000)
-2. Перейти до **Explore** (іконка компасу в лівому меню).
-3. Обрати datasource **Prometheus**.
+1. Запусти port-forward для Grafana (порт 3000).
+2. Відкрити: [http://localhost:3000](http://localhost:3000) — логін `admin` / `admin123`.
+3. Перейти до **Explore** → обрати datasource **Prometheus**.
 4. Виконати запити:
 
 ```promql
@@ -174,10 +174,13 @@ mlflow_loss{job="mlflow_training"}
 
 ## 6. Змінні середовища
 
-| Змінна | За замовчуванням | Опис |
-|--------|-----------------|------|
+| Змінна | Значення за замовчуванням | Опис |
+|--------|--------------------------|------|
 | `MLFLOW_TRACKING_URI` | `http://localhost:5000` | URL MLflow Tracking Server |
 | `PUSHGATEWAY_URL` | `localhost:9091` | Адреса Prometheus PushGateway |
+| `MLFLOW_S3_ENDPOINT_URL` | `http://localhost:9000` | MinIO S3 endpoint |
+| `AWS_ACCESS_KEY_ID` | `minio` | MinIO access key |
+| `AWS_SECRET_ACCESS_KEY` | `minio123` | MinIO secret key |
 
 ---
 

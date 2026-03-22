@@ -2,14 +2,12 @@ import os
 import shutil
 import mlflow
 import mlflow.sklearn
-import numpy as np
 from sklearn.datasets import load_iris
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, log_loss
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
-# ── Configuration ────────────────────────────────────────────────────────────
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 PUSHGATEWAY_URL     = os.getenv("PUSHGATEWAY_URL",     "localhost:9091")
 EXPERIMENT_NAME     = "iris-sgd-sweep"
@@ -17,13 +15,13 @@ EXPERIMENT_NAME     = "iris-sgd-sweep"
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 mlflow.set_experiment(EXPERIMENT_NAME)
 
-# ── Dataset ───────────────────────────────────────────────────────────────────
+# Dataset
 iris = load_iris()
 X_train, X_test, y_train, y_test = train_test_split(
     iris.data, iris.target, test_size=0.2, random_state=42
 )
 
-# ── Hyperparameter grid ───────────────────────────────────────────────────────
+# Hyperparameter grid
 param_grid = [
     {"learning_rate": lr, "max_iter": epochs}
     for lr in [0.001, 0.01, 0.1]
@@ -33,7 +31,7 @@ param_grid = [
 best_accuracy = -1.0
 best_run_id   = None
 
-# ── Training loop ─────────────────────────────────────────────────────────────
+#Training loop
 for params in param_grid:
     with mlflow.start_run() as run:
         run_id = run.info.run_id
@@ -52,7 +50,7 @@ for params in param_grid:
         acc     = accuracy_score(y_test, y_pred)
         loss    = log_loss(y_test, y_prob)
 
-        # ── Log to MLflow ──────────────────────────────────────────────────
+        # Log to MLflow
         mlflow.log_params(params)
         mlflow.log_metric("accuracy", acc)
         mlflow.log_metric("loss",     loss)
@@ -61,7 +59,7 @@ for params in param_grid:
         print(f"run_id={run_id}  lr={params['learning_rate']}  "
               f"epochs={params['max_iter']}  acc={acc:.4f}  loss={loss:.4f}")
 
-        # ── Push metrics to PushGateway ────────────────────────────────────
+        #Push metrics to PushGateway
         registry = CollectorRegistry()
         g_acc  = Gauge("mlflow_accuracy", "MLflow run accuracy",
                        ["run_id"], registry=registry)
@@ -77,12 +75,10 @@ for params in param_grid:
             registry=registry,
         )
 
-        # ── Track best run ─────────────────────────────────────────────────
         if acc > best_accuracy:
             best_accuracy = acc
             best_run_id   = run_id
 
-# ── Save best model locally ───────────────────────────────────────────────────
 print(f"\nBest run: {best_run_id}  accuracy={best_accuracy:.4f}")
 
 best_model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "best_model")

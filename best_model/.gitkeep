@@ -1,3 +1,0 @@
-# This directory is populated by train_and_push.py after a successful training run.
-# The best model (by accuracy) is downloaded here from MLflow artifact store.
-

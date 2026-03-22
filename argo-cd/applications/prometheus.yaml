@@ -26,12 +26,12 @@ spec:
             servicePort: 80
           persistentVolume:
             enabled: false
-          extraScrapeConfigs: |
-            - job_name: pushgateway
-              honor_labels: true
-              static_configs:
-                - targets:
-                    - prometheus-pushgateway.monitoring.svc.cluster.local:9091
+        extraScrapeConfigs: |
+          - job_name: pushgateway
+            honor_labels: true
+            static_configs:
+              - targets:
+                  - prometheus-pushgateway.monitoring.svc.cluster.local:9091
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
