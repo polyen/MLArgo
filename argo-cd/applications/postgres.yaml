@@ -9,26 +9,12 @@ spec:
     server: https://kubernetes.default.svc
   project: default
   source:
-    repoURL: registry-1.docker.io/bitnamicharts
-    chart: postgresql
-    targetRevision: 18.5.9
-    helm:
-      releaseName: mlflow-postgres
-      valuesObject:
-        image:
-          tag: latest
-        auth:
-          username: admin
-          password: admin
-          database: mlflow
-        primary:
-          persistence:
-            enabled: false
+    repoURL: https://github.com/polyen/MLArgo.git
+    targetRevision: main
+    path: k8s/postgres
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
-      - SkipDryRunOnMissingResource=true

@@ -9,21 +9,30 @@ spec:
     server: https://kubernetes.default.svc
   project: default
   source:
-    repoURL: registry-1.docker.io/bitnamicharts
+    repoURL: https://charts.min.io/
     chart: minio
-    targetRevision: 17.0.9
+    targetRevision: 5.4.0
     helm:
+      releaseName: minio
       valuesObject:
-        image:
-          tag: latest
-        auth:
-          rootUser: minio
-          rootPassword: minio123
-        defaultBuckets: "mlflow-artifacts"
+        mode: standalone
+        rootUser: minio
+        rootPassword: minio123
+        buckets:
+          - name: mlflow-artifacts
+            policy: none
+            purge: false
         service:
           type: ClusterIP
+          port: 9000
+        consoleService:
+          type: ClusterIP
+          port: 9001
         persistence:
           enabled: false
+        resources:
+          requests:
+            memory: 256Mi
   syncPolicy:
     automated:
       prune: true
