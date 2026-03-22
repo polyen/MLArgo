@@ -32,6 +32,11 @@ spec:
             serviceMonitorSelector: {}
             serviceMonitorSelectorNilUsesHelmValues: false
             retention: 2d
+            additionalScrapeConfigs:
+              - job_name: pushgateway
+                static_configs:
+                  - targets:
+                      - prometheus-pushgateway.monitoring.svc.cluster.local:9091
         kubelet:
           enabled: true
           serviceMonitor:
