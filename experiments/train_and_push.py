@@ -85,7 +85,7 @@ for params in param_grid:
 # ── Save best model locally ───────────────────────────────────────────────────
 print(f"\nBest run: {best_run_id}  accuracy={best_accuracy:.4f}")
 
-best_model_dir = "best_model"
+best_model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "best_model")
 if os.path.exists(best_model_dir):
     shutil.rmtree(best_model_dir)
 

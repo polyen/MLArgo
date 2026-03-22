@@ -25,7 +25,7 @@ spec:
             datasources:
               - name: Prometheus
                 type: prometheus
-                url: http://prometheus-pushgateway.monitoring.svc.cluster.local:9091
+                url: http://prometheus-server.monitoring.svc.cluster.local:80
                 isDefault: true
   destination:
     server: https://kubernetes.default.svc

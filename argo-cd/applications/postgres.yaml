@@ -13,6 +13,7 @@ spec:
     chart: postgresql
     targetRevision: 18.5.9
     helm:
+      releaseName: mlflow-postgres
       valuesObject:
         auth:
           username: admin
